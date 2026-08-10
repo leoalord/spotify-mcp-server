@@ -71,6 +71,16 @@ uv run pytest
 - Review the staged diff for unrelated changes, generated clutter, credentials, and dead code before committing.
 - Write commit messages that describe the behavior or constraint introduced, not the editing activity.
 
+## Branch and merge workflow
+
+- Treat `main` as protected. Never commit directly to it.
+- Start every change from an up-to-date `main`, then create a short-lived, focused feature or fix branch before editing. Codex-authored branches use the `codex/<short-description>` prefix.
+- Keep each branch limited to one coherent slice. Do not combine unrelated features, fixes, or refactors.
+- Run the complete verification gate and review the staged diff before committing on the branch.
+- Merge into `main` only through a reviewed pull request after all required checks pass. Never bypass branch protection, force-push `main`, or merge a failing change.
+- Delete the branch after it is merged.
+- If work was started on `main` accidentally, create a branch before the first commit. Do not add another direct commit to `main`.
+
 ## Approval gates
 
 Ask before:

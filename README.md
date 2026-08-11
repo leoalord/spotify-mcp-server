@@ -22,6 +22,22 @@ Streamable HTTP on loopback only.
 | `library_modify` | Save/remove/follow/unfollow up to 40 URIs per action | Changes library |
 | `listening_activity` | Read recent tracks and top tracks/artists | None |
 
+## Prompts and resources
+
+The server exposes four curated workflows that compose the nine tools without adding another API
+surface:
+
+| Prompt | Purpose |
+| --- | --- |
+| `catch_up_on_podcasts` | Prioritize unfinished or unplayed episodes from saved shows |
+| `weekly_music_recap` | Summarize patterns in recent plays and top music |
+| `build_playlist_for_mood` | Search and create a private playlist for a mood or activity |
+| `now_playing_briefing` | Produce a compact playback, device, progress, and queue summary |
+
+The intentionally small resource catalog contains `spotify://me`. It returns the current user's
+Spotify display name and stable `account_id`; dynamic playback, library, and playlist state remains
+behind tools.
+
 Podcast transcripts and inferred podcast listening history are intentionally out of scope because
 Spotify does not expose them through the supported Web API. The server does not embed, train on,
 download, or persist Spotify content.

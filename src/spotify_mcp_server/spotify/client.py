@@ -29,6 +29,7 @@ ALLOWED_OPERATIONS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (method, re.compile(pattern))
     for method, pattern in (
         ("GET", r"/search"),
+        ("GET", r"/me"),
         ("GET", r"/(tracks|albums|artists|shows|episodes|audiobooks|chapters)/[^/]+"),
         ("GET", r"/albums/[^/]+/tracks"),
         ("GET", r"/artists/[^/]+/albums"),

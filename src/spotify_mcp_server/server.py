@@ -5,6 +5,8 @@ from __future__ import annotations
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
+from spotify_mcp_server.prompts import register_prompts
+from spotify_mcp_server.resources import register_resources
 from spotify_mcp_server.spotify.auth import SpotifyTokenProvider
 from spotify_mcp_server.spotify.client import SpotifyClient
 from spotify_mcp_server.spotify.config import Settings
@@ -189,6 +191,9 @@ def create_server(service: SpotifyService | None = None) -> MCPServer:
     )
     async def listening_activity(request: ListeningActivityInput) -> ToolResponse:
         return await spotify.listening_activity(request)
+
+    register_prompts(server)
+    register_resources(server, spotify.client)
 
     return server
 

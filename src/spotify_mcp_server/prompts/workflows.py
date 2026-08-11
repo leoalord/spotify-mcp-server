@@ -14,8 +14,6 @@ def catch_up_on_podcasts(
         Field(description="Optional show name or topic to limit the podcast catch-up."),
     ] = None,
 ) -> str:
-    """Prioritize unfinished or unplayed episodes from the user's Spotify library."""
-
     scope = f" Limit the review to shows matching {show_filter!r}." if show_filter else ""
     return (
         "Help me catch up on podcasts using Spotify data only."
@@ -29,8 +27,6 @@ def catch_up_on_podcasts(
 
 
 def weekly_music_recap() -> str:
-    """Turn Spotify's available recent and top music data into a weekly-style recap."""
-
     return (
         "Create a concise music recap from Spotify. Call listening_activity for recent tracks and "
         "short-, medium-, and long-term top tracks and artists. Identify repetitions, contrasts, "
@@ -46,8 +42,6 @@ def build_playlist_for_mood(
         Field(description="Mood, setting, or activity the new playlist should match."),
     ],
 ) -> str:
-    """Build a Spotify playlist for a described mood, setting, or activity."""
-
     return (
         f"Build a Spotify playlist for this mood or activity: {mood!r}. Use search_catalog with "
         "several focused keyword queries and bounded pagination to assemble candidates. You may "
@@ -60,8 +54,6 @@ def build_playlist_for_mood(
 
 
 def now_playing_briefing() -> str:
-    """Provide a compact snapshot of the current Spotify playback state."""
-
     return (
         "Give me a compact now-playing briefing. Call player_status with its default complete "
         "snapshot, then summarize the active item, playback state, progress, device, and next "

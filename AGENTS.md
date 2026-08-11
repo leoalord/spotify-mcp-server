@@ -22,7 +22,7 @@ Create these areas only when the corresponding behavior is implemented:
 
 - `server.py`: server construction, registration, and transport startup only.
 - `spotify/`: OAuth, token storage, HTTP transport, retry behavior, pagination, and Spotify response handling.
-- `tools/`: MCP-facing schemas and thin orchestration for the eight consolidated tools.
+- `tools/`: MCP-facing schemas and thin orchestration for the nine consolidated tools.
 - `prompts/`, `resources/`, and `apps/`: prompt, resource, and UI-extension code once each phase begins.
 - `tests/`: behavior-focused tests; mirror production directories only when that makes tests easier to find.
 
@@ -33,7 +33,7 @@ Do not add repository/service/domain layers unless concrete behavior demonstrate
 - Target MCP `2026-07-28` with the official Python `mcp` v2 SDK.
 - Serve Streamable HTTP on loopback only for v1. Do not expose the server beyond localhost without explicit approval and MCP-layer OAuth hardening.
 - Target only Spotify's supported post-February 2026 API surface. Do not restore removed batch, browse, recommendation, audio-feature, or other-user endpoints.
-- Keep the public v1 catalog to the eight tools in the PRD. Adding a tool or changing a tool schema requires explicit approval and corresponding documentation and tests.
+- Keep the public v1 catalog to the nine explicitly approved tools. Adding a tool or changing a tool schema requires explicit approval and corresponding documentation and tests.
 - Do not use deprecated MCP Roots, Sampling, server-initiated protocol Logging, DCR, or legacy HTTP+SSE.
 - Keep Spotify OAuth tokens and MCP-layer credentials separate. Never log secrets, persist access tokens, or commit credentials.
 - All Apps-enabled behavior must retain a useful structured text/JSON fallback.
@@ -86,7 +86,7 @@ uv run pytest
 Ask before:
 
 - adding a production dependency;
-- changing the eight-tool catalog, a public tool schema, or documented semantics;
+- changing the nine-tool catalog, a public tool schema, or documented semantics;
 - widening Spotify OAuth scopes or changing credential storage;
 - exposing the service beyond loopback;
 - adding compatibility for an older or removed MCP/Spotify surface;

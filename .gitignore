@@ -18,6 +18,7 @@ venv/
 .env
 .env.*
 !.env.example
+.spotify-token.json
 *.pem
 *.key
 
@@ -26,6 +27,7 @@ venv/
 .idea/
 .vscode/
 
-# Runtime data
+# Runtime and generated data
 *.log
 data/
+schemas/generated/

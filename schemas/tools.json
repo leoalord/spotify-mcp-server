@@ -1,0 +1,2210 @@
+[
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "description": "Search one or more Spotify catalog types in parallel. Returns native type-grouped Spotify paging objects, bounded by Spotify's current limit of 10 results per page.",
+    "inputSchema": {
+      "$defs": {
+        "SearchCatalogInput": {
+          "additionalProperties": false,
+          "properties": {
+            "include_external": {
+              "anyOf": [
+                {
+                  "const": "audio",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Include External"
+            },
+            "limit": {
+              "default": 5,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "market": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Market"
+            },
+            "max_pages_per_type": {
+              "default": 1,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Max Pages Per Type",
+              "type": "integer"
+            },
+            "offset": {
+              "default": 0,
+              "maximum": 1000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            },
+            "query": {
+              "description": "Spotify search query, including field filters.",
+              "minLength": 1,
+              "title": "Query",
+              "type": "string"
+            },
+            "types": {
+              "description": "Distinct Spotify catalog types to search in parallel.",
+              "items": {
+                "enum": [
+                  "album",
+                  "artist",
+                  "playlist",
+                  "track",
+                  "show",
+                  "episode",
+                  "audiobook"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "title": "Types",
+              "type": "array"
+            }
+          },
+          "required": [
+            "query",
+            "types"
+          ],
+          "title": "SearchCatalogInput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/SearchCatalogInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "search_catalogArguments",
+      "type": "object"
+    },
+    "name": "search_catalog",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Search Spotify catalog"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "description": "Fetch 1-25 heterogeneous Spotify items by ID, URI, or web URL. Optionally include natural child collections such as album tracks or show episodes in the same call.",
+    "inputSchema": {
+      "$defs": {
+        "GetItemInput": {
+          "additionalProperties": false,
+          "properties": {
+            "expansion_paging": {
+              "$ref": "#/$defs/OffsetPaging"
+            },
+            "expansions": {
+              "items": {
+                "enum": [
+                  "album_tracks",
+                  "artist_albums",
+                  "show_episodes",
+                  "audiobook_chapters"
+                ],
+                "type": "string"
+              },
+              "title": "Expansions",
+              "type": "array"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/SpotifyReferenceInput"
+              },
+              "maxItems": 25,
+              "minItems": 1,
+              "title": "Items",
+              "type": "array"
+            },
+            "market": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Market"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "title": "GetItemInput",
+          "type": "object"
+        },
+        "OffsetPaging": {
+          "additionalProperties": false,
+          "properties": {
+            "limit": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "max_pages": {
+              "default": 1,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Max Pages",
+              "type": "integer"
+            },
+            "offset": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          "title": "OffsetPaging",
+          "type": "object"
+        },
+        "SpotifyReferenceInput": {
+          "additionalProperties": false,
+          "description": "A Spotify ID, URI, or open.spotify.com URL plus type when it cannot be inferred.",
+          "properties": {
+            "type": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SpotifyType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Required only when value is a bare Spotify ID."
+            },
+            "value": {
+              "description": "Spotify ID, URI, or open.spotify.com URL.",
+              "minLength": 1,
+              "title": "Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "title": "SpotifyReferenceInput",
+          "type": "object"
+        },
+        "SpotifyType": {
+          "enum": [
+            "album",
+            "artist",
+            "audiobook",
+            "chapter",
+            "episode",
+            "playlist",
+            "show",
+            "track"
+          ],
+          "title": "SpotifyType",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/GetItemInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "get_itemArguments",
+      "type": "object"
+    },
+    "name": "get_item",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Get Spotify items"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "description": "Fetch any combination of current playback, available devices, and the queue in parallel. Returns null current playback naturally when nothing is active.",
+    "inputSchema": {
+      "$defs": {
+        "PlayerStatusInput": {
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "default": [
+                "current_playback",
+                "devices",
+                "queue"
+              ],
+              "items": {
+                "enum": [
+                  "current_playback",
+                  "devices",
+                  "queue"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "title": "Include",
+              "type": "array"
+            },
+            "market": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Market"
+            }
+          },
+          "title": "PlayerStatusInput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/PlayerStatusInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "player_statusArguments",
+      "type": "object"
+    },
+    "name": "player_status",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Get Spotify player status"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "description": "Execute 1-20 explicitly ordered playback actions in one call, including transfer, play, pause, navigation, seek, repeat, volume, shuffle, and queue operations.",
+    "inputSchema": {
+      "$defs": {
+        "FailureMode": {
+          "enum": [
+            "stop",
+            "continue"
+          ],
+          "title": "FailureMode",
+          "type": "string"
+        },
+        "PlayerAction": {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "enum": [
+                "transfer_playback",
+                "start_playback",
+                "pause_playback",
+                "skip_next",
+                "skip_previous",
+                "seek",
+                "set_repeat",
+                "set_volume",
+                "set_shuffle",
+                "add_to_queue"
+              ],
+              "title": "Action",
+              "type": "string"
+            },
+            "context_uri": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Context Uri"
+            },
+            "device_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Device Id"
+            },
+            "device_ids": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 1,
+                  "minItems": 1,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Device Ids"
+            },
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Enabled"
+            },
+            "offset_position": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Offset Position"
+            },
+            "offset_uri": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Offset Uri"
+            },
+            "play": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Play"
+            },
+            "position_ms": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Position Ms"
+            },
+            "state": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "track",
+                    "context",
+                    "off"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "State"
+            },
+            "uri": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Uri"
+            },
+            "uris": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Uris"
+            },
+            "volume_percent": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Volume Percent"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "title": "PlayerAction",
+          "type": "object"
+        },
+        "PlayerControlInput": {
+          "additionalProperties": false,
+          "properties": {
+            "actions": {
+              "items": {
+                "$ref": "#/$defs/PlayerAction"
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "title": "Actions",
+              "type": "array"
+            },
+            "failure_mode": {
+              "$ref": "#/$defs/FailureMode",
+              "default": "stop"
+            },
+            "include_final_status": {
+              "default": true,
+              "title": "Include Final Status",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "actions"
+          ],
+          "title": "PlayerControlInput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/PlayerControlInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "player_controlArguments",
+      "type": "object"
+    },
+    "name": "player_control",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Control Spotify playback"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "description": "List the current user's playlists or fetch up to 20 referenced playlists. Playlist item contents are optional and follow Spotify's owner/collaborator access rule.",
+    "inputSchema": {
+      "$defs": {
+        "OffsetPaging": {
+          "additionalProperties": false,
+          "properties": {
+            "limit": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "max_pages": {
+              "default": 1,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Max Pages",
+              "type": "integer"
+            },
+            "offset": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          "title": "OffsetPaging",
+          "type": "object"
+        },
+        "PlaylistReadInput": {
+          "additionalProperties": false,
+          "properties": {
+            "market": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Market"
+            },
+            "requests": {
+              "items": {
+                "$ref": "#/$defs/PlaylistReadRequest"
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "title": "Requests",
+              "type": "array"
+            }
+          },
+          "required": [
+            "requests"
+          ],
+          "title": "PlaylistReadInput",
+          "type": "object"
+        },
+        "PlaylistReadRequest": {
+          "additionalProperties": false,
+          "properties": {
+            "include_items": {
+              "default": false,
+              "title": "Include Items",
+              "type": "boolean"
+            },
+            "operation": {
+              "enum": [
+                "list_current_playlists",
+                "get_playlists"
+              ],
+              "title": "Operation",
+              "type": "string"
+            },
+            "paging": {
+              "$ref": "#/$defs/OffsetPaging"
+            },
+            "playlists": {
+              "items": {
+                "$ref": "#/$defs/SpotifyReferenceInput"
+              },
+              "maxItems": 20,
+              "title": "Playlists",
+              "type": "array"
+            }
+          },
+          "required": [
+            "operation"
+          ],
+          "title": "PlaylistReadRequest",
+          "type": "object"
+        },
+        "SpotifyReferenceInput": {
+          "additionalProperties": false,
+          "description": "A Spotify ID, URI, or open.spotify.com URL plus type when it cannot be inferred.",
+          "properties": {
+            "type": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SpotifyType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Required only when value is a bare Spotify ID."
+            },
+            "value": {
+              "description": "Spotify ID, URI, or open.spotify.com URL.",
+              "minLength": 1,
+              "title": "Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "title": "SpotifyReferenceInput",
+          "type": "object"
+        },
+        "SpotifyType": {
+          "enum": [
+            "album",
+            "artist",
+            "audiobook",
+            "chapter",
+            "episode",
+            "playlist",
+            "show",
+            "track"
+          ],
+          "title": "SpotifyType",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/PlaylistReadInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "playlist_readArguments",
+      "type": "object"
+    },
+    "name": "playlist_read",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Read Spotify playlists"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "description": "Execute 1-20 ordered playlist creates or mutations. Later actions may reference a playlist created earlier in the same call; item actions mirror Spotify's 100-URI cap.",
+    "inputSchema": {
+      "$defs": {
+        "FailureMode": {
+          "enum": [
+            "stop",
+            "continue"
+          ],
+          "title": "FailureMode",
+          "type": "string"
+        },
+        "PlaylistAction": {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "enum": [
+                "create_playlist",
+                "change_playlist_details",
+                "add_items",
+                "remove_items",
+                "replace_items",
+                "reorder_items"
+              ],
+              "title": "Action",
+              "type": "string"
+            },
+            "collaborative": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Collaborative"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Description"
+            },
+            "insert_before": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Insert Before"
+            },
+            "name": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Name"
+            },
+            "playlist": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SpotifyReferenceInput"
+                },
+                {
+                  "$ref": "#/$defs/PriorActionReference"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Playlist"
+            },
+            "position": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Position"
+            },
+            "public": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Public"
+            },
+            "range_length": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Range Length"
+            },
+            "range_start": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Range Start"
+            },
+            "snapshot_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Snapshot Id"
+            },
+            "uris": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 100,
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Uris"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "title": "PlaylistAction",
+          "type": "object"
+        },
+        "PlaylistModifyInput": {
+          "additionalProperties": false,
+          "properties": {
+            "actions": {
+              "items": {
+                "$ref": "#/$defs/PlaylistAction"
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "title": "Actions",
+              "type": "array"
+            },
+            "failure_mode": {
+              "$ref": "#/$defs/FailureMode",
+              "default": "stop"
+            }
+          },
+          "required": [
+            "actions"
+          ],
+          "title": "PlaylistModifyInput",
+          "type": "object"
+        },
+        "PriorActionReference": {
+          "additionalProperties": false,
+          "description": "Reference an object produced by an earlier action in the same ordered request.",
+          "properties": {
+            "action_index": {
+              "minimum": 0,
+              "title": "Action Index",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "action_index"
+          ],
+          "title": "PriorActionReference",
+          "type": "object"
+        },
+        "SpotifyReferenceInput": {
+          "additionalProperties": false,
+          "description": "A Spotify ID, URI, or open.spotify.com URL plus type when it cannot be inferred.",
+          "properties": {
+            "type": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SpotifyType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Required only when value is a bare Spotify ID."
+            },
+            "value": {
+              "description": "Spotify ID, URI, or open.spotify.com URL.",
+              "minLength": 1,
+              "title": "Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "title": "SpotifyReferenceInput",
+          "type": "object"
+        },
+        "SpotifyType": {
+          "enum": [
+            "album",
+            "artist",
+            "audiobook",
+            "chapter",
+            "episode",
+            "playlist",
+            "show",
+            "track"
+          ],
+          "title": "SpotifyType",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/PlaylistModifyInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "playlist_modifyArguments",
+      "type": "object"
+    },
+    "name": "playlist_modify",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Modify Spotify playlists"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "description": "Bundle saved tracks, albums, shows, episodes, or audiobooks; followed artists; and heterogeneous library membership checks of up to 40 Spotify URIs.",
+    "inputSchema": {
+      "$defs": {
+        "LibraryReadInput": {
+          "additionalProperties": false,
+          "properties": {
+            "market": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Z]{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Market"
+            },
+            "requests": {
+              "items": {
+                "$ref": "#/$defs/LibraryReadRequest"
+              },
+              "maxItems": 10,
+              "minItems": 1,
+              "title": "Requests",
+              "type": "array"
+            }
+          },
+          "required": [
+            "requests"
+          ],
+          "title": "LibraryReadInput",
+          "type": "object"
+        },
+        "LibraryReadRequest": {
+          "additionalProperties": false,
+          "properties": {
+            "after": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "After"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/SpotifyReferenceInput"
+              },
+              "maxItems": 40,
+              "title": "Items",
+              "type": "array"
+            },
+            "operation": {
+              "enum": [
+                "list_saved",
+                "list_followed_artists",
+                "contains"
+              ],
+              "title": "Operation",
+              "type": "string"
+            },
+            "paging": {
+              "$ref": "#/$defs/OffsetPaging"
+            },
+            "type": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "track",
+                    "album",
+                    "show",
+                    "episode",
+                    "audiobook"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Type"
+            }
+          },
+          "required": [
+            "operation"
+          ],
+          "title": "LibraryReadRequest",
+          "type": "object"
+        },
+        "OffsetPaging": {
+          "additionalProperties": false,
+          "properties": {
+            "limit": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "max_pages": {
+              "default": 1,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Max Pages",
+              "type": "integer"
+            },
+            "offset": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          "title": "OffsetPaging",
+          "type": "object"
+        },
+        "SpotifyReferenceInput": {
+          "additionalProperties": false,
+          "description": "A Spotify ID, URI, or open.spotify.com URL plus type when it cannot be inferred.",
+          "properties": {
+            "type": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SpotifyType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Required only when value is a bare Spotify ID."
+            },
+            "value": {
+              "description": "Spotify ID, URI, or open.spotify.com URL.",
+              "minLength": 1,
+              "title": "Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "title": "SpotifyReferenceInput",
+          "type": "object"
+        },
+        "SpotifyType": {
+          "enum": [
+            "album",
+            "artist",
+            "audiobook",
+            "chapter",
+            "episode",
+            "playlist",
+            "show",
+            "track"
+          ],
+          "title": "SpotifyType",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/LibraryReadInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "library_readArguments",
+      "type": "object"
+    },
+    "name": "library_read",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Read Spotify library"
+  },
+  {
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": false
+    },
+    "description": "Run 1-20 ordered save, remove, follow, or unfollow actions through Spotify's generic library endpoint. Each idempotent action accepts up to 40 typed Spotify references.",
+    "inputSchema": {
+      "$defs": {
+        "FailureMode": {
+          "enum": [
+            "stop",
+            "continue"
+          ],
+          "title": "FailureMode",
+          "type": "string"
+        },
+        "LibraryAction": {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "enum": [
+                "save",
+                "remove",
+                "follow",
+                "unfollow"
+              ],
+              "title": "Action",
+              "type": "string"
+            },
+            "items": {
+              "items": {
+                "$ref": "#/$defs/SpotifyReferenceInput"
+              },
+              "maxItems": 40,
+              "minItems": 1,
+              "title": "Items",
+              "type": "array"
+            }
+          },
+          "required": [
+            "action",
+            "items"
+          ],
+          "title": "LibraryAction",
+          "type": "object"
+        },
+        "LibraryModifyInput": {
+          "additionalProperties": false,
+          "properties": {
+            "actions": {
+              "items": {
+                "$ref": "#/$defs/LibraryAction"
+              },
+              "maxItems": 20,
+              "minItems": 1,
+              "title": "Actions",
+              "type": "array"
+            },
+            "failure_mode": {
+              "$ref": "#/$defs/FailureMode",
+              "default": "stop"
+            }
+          },
+          "required": [
+            "actions"
+          ],
+          "title": "LibraryModifyInput",
+          "type": "object"
+        },
+        "SpotifyReferenceInput": {
+          "additionalProperties": false,
+          "description": "A Spotify ID, URI, or open.spotify.com URL plus type when it cannot be inferred.",
+          "properties": {
+            "type": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SpotifyType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Required only when value is a bare Spotify ID."
+            },
+            "value": {
+              "description": "Spotify ID, URI, or open.spotify.com URL.",
+              "minLength": 1,
+              "title": "Value",
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "title": "SpotifyReferenceInput",
+          "type": "object"
+        },
+        "SpotifyType": {
+          "enum": [
+            "album",
+            "artist",
+            "audiobook",
+            "chapter",
+            "episode",
+            "playlist",
+            "show",
+            "track"
+          ],
+          "title": "SpotifyType",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/LibraryModifyInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "library_modifyArguments",
+      "type": "object"
+    },
+    "name": "library_modify",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Modify Spotify library"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "description": "Fetch recently played tracks and top tracks or artists across short-, medium-, and long-term ranges. Spotify does not expose podcast listening history here.",
+    "inputSchema": {
+      "$defs": {
+        "ListeningActivityInput": {
+          "additionalProperties": false,
+          "properties": {
+            "after": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "After"
+            },
+            "before": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Before"
+            },
+            "include": {
+              "default": [
+                "recent_tracks",
+                "top_tracks",
+                "top_artists"
+              ],
+              "items": {
+                "enum": [
+                  "recent_tracks",
+                  "top_tracks",
+                  "top_artists"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "title": "Include",
+              "type": "array"
+            },
+            "max_pages": {
+              "default": 1,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Max Pages",
+              "type": "integer"
+            },
+            "recent_limit": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Recent Limit",
+              "type": "integer"
+            },
+            "time_ranges": {
+              "default": [
+                "short_term",
+                "medium_term",
+                "long_term"
+              ],
+              "items": {
+                "enum": [
+                  "short_term",
+                  "medium_term",
+                  "long_term"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "title": "Time Ranges",
+              "type": "array"
+            },
+            "top_limit": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Top Limit",
+              "type": "integer"
+            },
+            "top_offset": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Top Offset",
+              "type": "integer"
+            }
+          },
+          "title": "ListeningActivityInput",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "request": {
+          "$ref": "#/$defs/ListeningActivityInput"
+        }
+      },
+      "required": [
+        "request"
+      ],
+      "title": "listening_activityArguments",
+      "type": "object"
+    },
+    "name": "listening_activity",
+    "outputSchema": {
+      "$defs": {
+        "ContractWarning": {
+          "additionalProperties": false,
+          "properties": {
+            "action_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Action Index"
+            },
+            "code": {
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "request_index": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Index"
+            },
+            "retry_after_seconds": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Retry After Seconds"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "ContractWarning",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Common structured result. Partial successes always retain usable Spotify data.",
+      "properties": {
+        "data": {
+          "additionalProperties": true,
+          "title": "Data",
+          "type": "object"
+        },
+        "status": {
+          "pattern": "^(ok|partial|error)$",
+          "title": "Status",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ContractWarning"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ToolResponse",
+      "type": "object"
+    },
+    "title": "Read Spotify listening activity"
+  }
+]

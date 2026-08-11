@@ -86,7 +86,7 @@ uv run pytest
 Ask before:
 
 - adding a production dependency;
-- changing the eight-tool catalog, a public tool schema, or documented semantics;
+- changing the nine-tool catalog, a public tool schema, or documented semantics;
 - widening Spotify OAuth scopes or changing credential storage;
 - exposing the service beyond loopback;
 - adding compatibility for an older or removed MCP/Spotify surface;

@@ -202,7 +202,8 @@ def main() -> None:
     settings = Settings.from_env()
     if settings.host not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("MCP_HOST must be a loopback address")
-    mcp.run(
+    runtime = create_server(build_service(settings))
+    runtime.run(
         transport="streamable-http",
         host=settings.host,
         port=settings.port,

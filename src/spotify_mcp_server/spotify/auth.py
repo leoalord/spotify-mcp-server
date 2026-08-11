@@ -127,7 +127,11 @@ class SpotifyTokenProvider:
             ):
                 return self._token.access_token
 
-            refresh_token = self._token.refresh_token if self._token else self.store.load()
+            refresh_token = (
+                self._token.refresh_token
+                if self._token
+                else await asyncio.to_thread(self.store.load)
+            )
             if not refresh_token:
                 raise AuthenticationError("Run `spotify-mcp-auth` before using Spotify tools")
             previous = self._token or TokenSet("", refresh_token, 0, "")
@@ -151,7 +155,7 @@ class SpotifyTokenProvider:
             )
         refreshed = TokenSet.from_payload(response.json(), previous=token)
         if refreshed.refresh_token and refreshed.refresh_token != token.refresh_token:
-            self.store.save(refreshed.refresh_token)
+            await asyncio.to_thread(self.store.save, refreshed.refresh_token)
         return refreshed
 
     async def aclose(self) -> None:
@@ -174,7 +178,12 @@ def _receive_callback(redirect_uri: str, expected_state: str) -> str:
 
     class CallbackHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            query = parse_qs(urlparse(self.path).query)
+            requested = urlparse(self.path)
+            if requested.path != (parsed.path or "/"):
+                self.send_response(404)
+                self.end_headers()
+                return
+            query = parse_qs(requested.query)
             if query.get("state", [""])[0] != expected_state:
                 result["error"] = "OAuth state did not match"
                 status = 400
@@ -187,15 +196,24 @@ def _receive_callback(redirect_uri: str, expected_state: str) -> str:
             self.send_response(status)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.end_headers()
-            self.wfile.write(b"Spotify authorization received. You may close this window.")
+            message = (
+                "Spotify authorization received. You may close this window."
+                if status == 200
+                else f"Spotify authorization failed: {result.get('error', 'unknown error')}"
+            )
+            self.wfile.write(message.encode("utf-8"))
 
         def log_message(self, format: str, *args: object) -> None:
             return
 
     server = HTTPServer((parsed.hostname, parsed.port), CallbackHandler)
-    server.timeout = 180
-    server.handle_request()
-    server.server_close()
+    deadline = time.monotonic() + 180
+    try:
+        while not result and time.monotonic() < deadline:
+            server.timeout = max(0.0, deadline - time.monotonic())
+            server.handle_request()
+    finally:
+        server.server_close()
     if "error" in result:
         raise AuthenticationError(result["error"])
     if not result.get("code"):

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from email.utils import parsedate_to_datetime
 from typing import Any, Protocol
 
 import httpx2
@@ -166,7 +168,7 @@ class SpotifyClient:
         """Follow Spotify `next` URLs up to the caller's bounded page budget."""
 
         page = await self.request("GET", path, params=params)
-        container = page[container_key] if container_key else page
+        container = _paging_container(page, container_key)
         combined = dict(container)
         combined["items"] = list(container.get("items", []))
         pages_fetched = 1
@@ -176,7 +178,7 @@ class SpotifyClient:
             next_page = await self.request(
                 "GET", parsed.path.removeprefix("/v1"), params=dict(parsed.params.multi_items())
             )
-            next_container = next_page[container_key] if container_key else next_page
+            next_container = _paging_container(next_page, container_key)
             combined["items"].extend(next_container.get("items", []))
             combined["next"] = next_container.get("next")
             pages_fetched += 1
@@ -196,7 +198,22 @@ def _retry_after(response: httpx2.Response) -> float | None:
     try:
         return max(0.0, float(value))
     except ValueError:
-        return None
+        try:
+            return max(0.0, parsedate_to_datetime(value).timestamp() - time.time())
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+
+def _paging_container(page: Any, container_key: str | None) -> dict[str, Any]:
+    if not isinstance(page, dict):
+        raise SpotifyAPIError(502, "Spotify returned no paging object")
+    container = page.get(container_key) if container_key else page
+    name = f"{container_key!r} " if container_key else ""
+    if not isinstance(container, dict):
+        raise SpotifyAPIError(502, f"Spotify response is missing the {name}paging object")
+    if not isinstance(container.get("items"), list):
+        raise SpotifyAPIError(502, f"Spotify {name}paging object is missing an items list")
+    return container
 
 
 def _ensure_allowed(method: str, path: str) -> None:

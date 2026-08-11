@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import socket
+import threading
+from urllib.error import HTTPError
+from urllib.request import urlopen
+
 import httpx2
 import pytest
 
@@ -28,11 +33,15 @@ class MemoryStore:
     def __init__(self, refresh_token: str | None = None) -> None:
         self.refresh_token = refresh_token
         self.saved: list[str] = []
+        self.load_thread: int | None = None
+        self.save_threads: list[int] = []
 
     def load(self) -> str | None:
+        self.load_thread = threading.get_ident()
         return self.refresh_token
 
     def save(self, refresh_token: str) -> None:
+        self.save_threads.append(threading.get_ident())
         self.refresh_token = refresh_token
         self.saved.append(refresh_token)
 
@@ -93,6 +102,7 @@ async def test_provider_loads_refresh_token_but_keeps_access_token_in_memory() -
     assert calls == 1
     assert store.saved == []
     assert store.refresh_token == "keep"
+    assert store.load_thread != threading.get_ident()
 
 
 async def test_provider_persists_only_rotated_refresh_token() -> None:
@@ -114,6 +124,7 @@ async def test_provider_persists_only_rotated_refresh_token() -> None:
 
     assert store.saved == ["rotated"]
     assert "new-access" not in store.saved
+    assert store.save_threads[0] != threading.get_ident()
 
 
 async def test_provider_requires_prior_authorization() -> None:
@@ -175,3 +186,73 @@ def test_pkce_pair_is_url_safe() -> None:
     assert len(verifier) >= 43
     assert "=" not in challenge
     assert verifier != challenge
+
+
+def _callback_target(monkeypatch: pytest.MonkeyPatch) -> tuple[str, threading.Event]:
+    with socket.socket() as available:
+        available.bind(("127.0.0.1", 0))
+        port = available.getsockname()[1]
+
+    ready = threading.Event()
+    original_server = auth_module.HTTPServer
+
+    def make_server(*args: object, **kwargs: object):
+        server = original_server(*args, **kwargs)
+        ready.set()
+        return server
+
+    monkeypatch.setattr(auth_module, "HTTPServer", make_server)
+    return f"http://127.0.0.1:{port}/callback", ready
+
+
+def test_receive_callback_rejects_non_loopback_redirect() -> None:
+    with pytest.raises(AuthenticationError, match="loopback"):
+        auth_module._receive_callback("https://example.com/callback", "state")
+
+
+def test_callback_handler_rejects_mismatched_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    redirect, ready = _callback_target(monkeypatch)
+    outcome: list[str | Exception] = []
+
+    def receive() -> None:
+        try:
+            outcome.append(auth_module._receive_callback(redirect, "expected"))
+        except Exception as exc:
+            outcome.append(exc)
+
+    thread = threading.Thread(target=receive, daemon=True)
+    thread.start()
+    assert ready.wait(timeout=2)
+    with pytest.raises(HTTPError) as raised:
+        urlopen(f"{redirect}?code=abc&state=forged", timeout=2)
+    assert raised.value.code == 400
+    assert b"authorization failed" in raised.value.read()
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    assert isinstance(outcome[0], AuthenticationError)
+    assert "state" in str(outcome[0])
+
+
+def test_callback_handler_ignores_unrelated_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    redirect, ready = _callback_target(monkeypatch)
+    outcome: list[str | Exception] = []
+
+    def receive() -> None:
+        try:
+            outcome.append(auth_module._receive_callback(redirect, "expected"))
+        except Exception as exc:
+            outcome.append(exc)
+
+    thread = threading.Thread(target=receive, daemon=True)
+    thread.start()
+    assert ready.wait(timeout=2)
+    with pytest.raises(HTTPError) as raised:
+        urlopen(redirect.replace("/callback", "/favicon.ico"), timeout=2)
+    assert raised.value.code == 404
+    body = urlopen(f"{redirect}?code=abc&state=expected", timeout=2).read()
+    thread.join(timeout=2)
+
+    assert b"authorization received" in body
+    assert not thread.is_alive()
+    assert outcome == ["abc"]

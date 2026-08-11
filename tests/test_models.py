@@ -79,6 +79,7 @@ def test_action_specific_validation() -> None:
         PlayerAction(action="start_playback", context_uri="spotify:album:a", uris=["x"])
     with pytest.raises(ValidationError, match="one offset"):
         PlayerAction(action="start_playback", offset_uri="x", offset_position=1)
+    assert PlayerAction(action="pause_playback", context_uri="x", uris=["y"])
     with pytest.raises(ValidationError, match="name is required"):
         PlaylistAction(action="create_playlist")
     with pytest.raises(ValidationError, match="playlist is required"):

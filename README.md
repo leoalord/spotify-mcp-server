@@ -76,9 +76,9 @@ refresh tokens are stored by the operating system credential backend.
 ## Development
 
 ```bash
-uv run --frozen ruff check .
-uv run --frozen ruff format --check .
-uv run --frozen pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
 ```
 
 Tests use mocked Spotify HTTP responses and the MCP in-memory client; they do not require a Spotify

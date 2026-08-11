@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Any
 
 from spotify_mcp_server.spotify.client import SpotifyAPIError, SpotifyClient
@@ -412,13 +413,14 @@ class SpotifyService:
     async def listening_activity(self, request: ListeningActivityInput) -> ToolResponse:
         """Fetch recent tracks and top tracks/artists across requested Spotify time ranges."""
 
-        calls: list[tuple[str, str, Awaitable[dict[str, Any]]]] = []
+        calls: list[tuple[str, str, Callable[[], Awaitable[dict[str, Any]]]]] = []
         if "recent_tracks" in request.include:
             calls.append(
                 (
                     "recent_tracks",
                     "recent",
-                    self.client.paged(
+                    partial(
+                        self.client.paged,
                         "/me/player/recently-played",
                         params={
                             "limit": request.recent_limit,
@@ -438,7 +440,8 @@ class SpotifyService:
                     (
                         include_name,
                         time_range,
-                        self.client.paged(
+                        partial(
+                            self.client.paged,
                             f"/me/top/{item_type}",
                             params={
                                 "time_range": time_range,
@@ -451,10 +454,10 @@ class SpotifyService:
                 )
 
         async def resolve(
-            name: str, qualifier: str, call: Awaitable[dict[str, Any]]
+            name: str, qualifier: str, call: Callable[[], Awaitable[dict[str, Any]]]
         ) -> tuple[str, str, Any, ContractWarning | None]:
             try:
-                return name, qualifier, await call, None
+                return name, qualifier, await call(), None
             except SpotifyAPIError as exc:
                 return name, qualifier, None, _warning(exc, f"{name}_{qualifier}_failed")
 
@@ -512,10 +515,23 @@ def _warning(
 
 
 def _response(data: dict[str, Any], warnings: list[ContractWarning]) -> ToolResponse:
-    if warnings and data:
+    if warnings and _has_usable_data(data):
         status = "partial"
     elif warnings:
         status = "error"
     else:
         status = "ok"
     return ToolResponse(status=status, data=data, warnings=warnings)
+
+
+def _has_usable_data(data: dict[str, Any]) -> bool:
+    for key, value in data.items():
+        if key in {"actions", "results"}:
+            if value:
+                return True
+        elif isinstance(value, dict):
+            if _has_usable_data(value):
+                return True
+        elif value is not None:
+            return True
+    return False

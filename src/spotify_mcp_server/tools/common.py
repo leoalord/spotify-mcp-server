@@ -61,7 +61,7 @@ class SpotifyReferenceInput(StrictModel):
         if not re.fullmatch(r"[A-Za-z0-9]+", item_id):
             raise ValueError("Spotify ID contains invalid characters")
         if allowed is not None and item_type not in allowed:
-            values = ", ".join(sorted(value.value for value in allowed))
+            values = ", ".join(sorted(allowed_type.value for allowed_type in allowed))
             raise ValueError(f"Spotify item type must be one of: {values}")
         assert item_type is not None
         return SpotifyReference(id=item_id, type=item_type, uri=f"spotify:{item_type}:{item_id}")

@@ -26,6 +26,7 @@ class StubClient:
         self.requests: list[tuple[str, str, dict[str, Any], dict[str, Any] | None]] = []
         self.pages: list[tuple[str, dict[str, Any], int, str | None]] = []
         self.fail_paths: set[str] = set()
+        self.fail_containers: set[str] = set()
 
     async def request(
         self,
@@ -57,7 +58,7 @@ class StubClient:
         container_key: str | None = None,
     ) -> dict[str, Any]:
         self.pages.append((path, params, max_pages, container_key))
-        if path in self.fail_paths:
+        if path in self.fail_paths or container_key in self.fail_containers:
             raise SpotifyAPIError(429, "slow", retry_after_seconds=2)
         return {"items": [{"id": path}], "next": None, "pages_fetched": 1}
 
@@ -66,16 +67,28 @@ def service(stub: StubClient) -> SpotifyService:
     return SpotifyService(cast(SpotifyClient, stub))
 
 
-async def test_search_catalog_parallel_partial_response() -> None:
+async def test_search_catalog_total_failure_is_error() -> None:
     stub = StubClient()
     stub.fail_paths.add("/search")
     result = await service(stub).search_catalog(
         SearchCatalogInput(query="focus", types=["track", "album"], max_pages_per_type=3)
     )
-    assert result.status == "partial"
+    assert result.status == "error"
+    assert result.data["results"] == {}
     assert len(result.warnings) == 2
     assert result.warnings[0].retry_after_seconds == 2
     assert all(page[2] == 3 for page in stub.pages)
+
+
+async def test_search_catalog_retains_successful_type_as_partial() -> None:
+    stub = StubClient()
+    stub.fail_containers.add("albums")
+    result = await service(stub).search_catalog(
+        SearchCatalogInput(query="focus", types=["track", "album"])
+    )
+    assert result.status == "partial"
+    assert set(result.data["results"]) == {"track"}
+    assert [warning.code for warning in result.warnings] == ["search_failed_album"]
 
 
 async def test_search_catalog_groups_successful_types() -> None:
@@ -116,6 +129,15 @@ async def test_player_status_bundles_and_retains_partial() -> None:
     assert len(stub.requests) == 3
 
 
+async def test_player_status_total_failure_is_error() -> None:
+    stub = StubClient()
+    stub.fail_paths.update({"/me/player", "/me/player/devices", "/me/player/queue"})
+    result = await service(stub).player_status(PlayerStatusInput())
+    assert result.status == "error"
+    assert all(value is None for value in result.data.values())
+    assert len(result.warnings) == 3
+
+
 async def test_playlist_read_list_and_contents() -> None:
     stub = StubClient()
     result = await service(stub).playlist_read(
@@ -151,7 +173,7 @@ async def test_playlist_read_partial_on_access_rule() -> None:
             ]
         )
     )
-    assert result.status == "partial"
+    assert result.status == "error"
     assert result.warnings[0].request_index == 0
 
 
@@ -189,7 +211,7 @@ async def test_library_read_returns_warning_for_bad_reference() -> None:
             ]
         )
     )
-    assert result.status == "partial"
+    assert result.status == "error"
     assert result.warnings[0].code == "library_read_failed"
 
 

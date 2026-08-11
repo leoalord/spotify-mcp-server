@@ -101,10 +101,11 @@ class PlayerAction(StrictModel):
         }
         if self.action in required and required[self.action][0] is None:
             raise ValueError(f"{required[self.action][1]} is required for {self.action}")
-        if self.context_uri is not None and self.uris is not None:
-            raise ValueError("start_playback accepts context_uri or uris, not both")
-        if self.offset_uri is not None and self.offset_position is not None:
-            raise ValueError("start_playback accepts one offset form")
+        if self.action == "start_playback":
+            if self.context_uri is not None and self.uris is not None:
+                raise ValueError("start_playback accepts context_uri or uris, not both")
+            if self.offset_uri is not None and self.offset_position is not None:
+                raise ValueError("start_playback accepts one offset form")
         return self
 
 

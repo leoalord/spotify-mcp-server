@@ -104,7 +104,7 @@ async def test_player_control_stop_and_continue_failure_modes() -> None:
             include_final_status=False,
         )
     )
-    assert result.status == "partial"
+    assert result.status == "error"
     assert len(stopped.calls) == 1
 
     continued = WriteClient(fail_at=0)

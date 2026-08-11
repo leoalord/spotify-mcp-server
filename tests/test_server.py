@@ -9,6 +9,7 @@ from typing import Any, cast
 import pytest
 from mcp import Client
 
+import spotify_mcp_server.server as server_module
 from spotify_mcp_server.server import create_server, main, mcp
 from spotify_mcp_server.tools.common import ToolResponse
 from spotify_mcp_server.tools.service import SpotifyService
@@ -29,7 +30,8 @@ TOOL_NAMES = [
 
 
 def load_snapshot() -> object:
-    return json.loads(Path("schemas/tools.json").read_text(encoding="utf-8"))
+    path = Path(__file__).resolve().parents[1] / "schemas" / "tools.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 async def test_server_discovers_current_protocol_and_exact_tool_catalog() -> None:
@@ -113,14 +115,29 @@ def test_main_rejects_non_loopback_host(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_main_runs_stateless_streamable_http(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
+    runtime_service = object()
 
-    def run(*, transport: str, **kwargs: object) -> None:
-        captured.update(transport=transport, **kwargs)
+    class RuntimeServer:
+        def run(self, *, transport: str, **kwargs: object) -> None:
+            captured.update(transport=transport, **kwargs)
+
+    def build_service(settings: object) -> object:
+        captured["settings"] = settings
+        return runtime_service
+
+    def create_server(service: object) -> RuntimeServer:
+        assert service is runtime_service
+        return RuntimeServer()
 
     monkeypatch.setenv("MCP_HOST", "127.0.0.1")
     monkeypatch.setenv("MCP_PORT", "8123")
-    monkeypatch.setattr(mcp, "run", run)
+    monkeypatch.setattr(server_module, "build_service", build_service)
+    monkeypatch.setattr(server_module, "create_server", create_server)
     main()
+    settings = captured.pop("settings")
+    assert isinstance(settings, server_module.Settings)
+    assert settings.host == "127.0.0.1"
+    assert settings.port == 8123
     assert captured == {
         "transport": "streamable-http",
         "host": "127.0.0.1",

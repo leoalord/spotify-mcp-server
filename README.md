@@ -1,94 +1,98 @@
 # Spotify MCP Server
 
-A personal-use Model Context Protocol (MCP) server for Spotify, designed around a small set of consolidated tools for music, podcasts, audiobooks, playback, playlists, library management, and listening history.
+A personal, Pydantic-first MCP v2 server that bundles Spotify Web API operations into nine
+agent-friendly tools. It preserves Spotify object shapes, filters formally deprecated fields,
+returns usable partial results with structured warnings, and keeps reads frictionless while making
+writes explicit and bounded.
 
-> Status: early scaffold. The server shell exists; Spotify authentication and product tools are not implemented yet.
+The server targets MCP `2026-07-28`, uses the official Python `mcp` v2 SDK, and serves stateless
+Streamable HTTP on loopback only.
 
-## Product direction
+## Tools
 
-The project targets:
+| Tool | Purpose | Side effects |
+| --- | --- | --- |
+| `search_catalog` | Search albums, artists, playlists, tracks, shows, episodes, and audiobooks | None |
+| `get_item` | Fetch heterogeneous items with natural child expansions | None |
+| `player_status` | Fetch playback, devices, and queue together | None |
+| `player_control` | Run up to 20 ordered playback actions | Changes playback |
+| `playlist_read` | List playlists and retrieve owned/collaborative contents | None |
+| `playlist_modify` | Create and mutate playlists in an ordered batch | Changes playlists |
+| `library_read` | Read saved items, followed artists, and membership | None |
+| `library_modify` | Save/remove/follow/unfollow up to 40 URIs per action | Changes library |
+| `listening_activity` | Read recent tracks and top tracks/artists | None |
 
-- MCP specification `2026-07-28`
-- The official Python `mcp` v2 SDK
-- Spotify's post-February 2026 Web API surface
-- Stateless Streamable HTTP bound to `127.0.0.1`
-- Graceful text/JSON fallbacks for MCP Apps-enabled tools
+Podcast transcripts and inferred podcast listening history are intentionally out of scope because
+Spotify does not expose them through the supported Web API. The server does not embed, train on,
+download, or persist Spotify content.
 
-The planned v1 surface contains eight consolidated tools:
-
-1. `search_catalog`
-2. `get_item`
-3. `player_status`
-4. `player_control`
-5. `playlist_manage`
-6. `library_manage`
-7. `listening_history`
-8. `podcast_progress`
-
-See the [Spotify MCP Server PRD](https://app.notion.com/p/Spotify-MCP-Server-PRD-3b72bade7f3181d38201dc480d7c5d3c) for requirements, constraints, and the build sequence.
-
-## Repository structure
-
-```text
-.
-├── src/spotify_mcp_server/
-│   ├── __init__.py
-│   └── server.py
-├── tests/
-│   └── test_server.py
-├── .env.example
-├── .gitignore
-├── pyproject.toml
-└── README.md
-```
-
-## Getting started
+## Setup
 
 Prerequisites:
 
 - Python 3.11+
-- [`uv`](https://docs.astral.sh/uv/) (recommended)
+- [`uv`](https://docs.astral.sh/uv/)
 - A Spotify developer application
 
-Create the environment and install the package:
+1. In the Spotify developer dashboard, register `http://127.0.0.1:8765/callback` as a redirect URI.
+2. Install the locked project environment and create local configuration:
 
-```bash
-uv sync --extra dev
-cp .env.example .env
-```
+   ```bash
+   uv sync --locked --extra dev
+   cp .env.example .env
+   ```
 
-Start the local Streamable HTTP server:
+3. Set `SPOTIFY_CLIENT_ID` in `.env` or your process environment.
+4. Authorize once; the refresh token is stored in the operating system keychain while access tokens
+   remain in memory:
 
-```bash
-uv run spotify-mcp-server
-```
+   ```bash
+   uv run spotify-mcp-auth
+   ```
 
-The MCP endpoint is available at `http://127.0.0.1:8000/mcp`.
+5. Start the loopback server:
 
-Run the initial smoke test:
+   ```bash
+   uv run spotify-mcp-server
+   ```
 
-```bash
-uv run pytest
-```
+The MCP endpoint is `http://127.0.0.1:8000/mcp` by default. Configure an MCP v2 client to use that
+Streamable HTTP URL. The server rejects non-loopback `MCP_HOST` values.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and fill in local values as features are implemented. Never commit Spotify credentials, OAuth tokens, or the local MCP bearer token.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SPOTIFY_CLIENT_ID` | — | Public Spotify application client ID; required for authorization |
+| `SPOTIFY_REDIRECT_URI` | `http://127.0.0.1:8765/callback` | Registered loopback OAuth callback |
+| `SPOTIFY_API_BASE_URL` | `https://api.spotify.com/v1` | Spotify API base; primarily useful in tests |
+| `SPOTIFY_ACCOUNTS_BASE_URL` | `https://accounts.spotify.com` | Spotify OAuth base; primarily useful in tests |
+| `MCP_HOST` | `127.0.0.1` | Loopback bind address only |
+| `MCP_PORT` | `8000` | Local Streamable HTTP port |
 
-Spotify refresh tokens will be stored in the OS keychain or an encrypted file. Access tokens will remain in memory only. Spotify OAuth credentials and MCP client authentication are separate security boundaries and must never share tokens.
+Spotify OAuth credentials are never returned from MCP tools. Access tokens remain memory-only, and
+refresh tokens are stored by the operating system credential backend.
 
-## Initial roadmap
+## Development
 
-- Verify `server/discover` for MCP `2026-07-28`
-- Add the shared Spotify HTTP client, pagination, and retry handling
-- Implement Spotify Authorization Code + PKCE
-- Build the read-only tool slice
-- Ship `podcast_progress` and `catch_up_on_podcasts` as the first demoable workflow
-- Add write tools, prompts, the `spotify://me` resource, and MCP Apps widgets
+```bash
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
+uv run --frozen pytest
+```
 
-## Development notes
+Tests use mocked Spotify HTTP responses and the MCP in-memory client; they do not require a Spotify
+account or make network calls. A live smoke test additionally needs an authorized account and, for
+playback controls, an active Spotify device and any account capabilities Spotify requires.
 
-- Use Python logging, which writes to stderr; do not use `print()` in server code.
-- Do not add Spotify endpoints removed in the November 2024 or February 2026 API changes.
-- Do not add deprecated MCP primitives such as Roots, Sampling, or server-initiated protocol logging.
-- Keep tool results useful as structured text/JSON even when the client does not support MCP Apps.
+## API compatibility and policy
+
+The HTTP client enforces an explicit allowlist audited against Spotify's post-February 2026 Web API
+surface. Deprecated bulk and type-specific mutation endpoints are rejected before a request is
+sent. Request limits mirror Spotify's published limits. A `429` response is retried within a small
+bounded budget and, if still unsuccessful, is returned as a structured warning alongside any
+successful partial results.
+
+Before distribution, recheck Spotify's current Developer Terms for the intended MCP host and LLM
+runtime. Spotify content must not be used to train or fine-tune a model, and this server provides no
+long-lived content cache or embeddings.

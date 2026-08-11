@@ -3,6 +3,7 @@ from __future__ import annotations
 import socket
 import threading
 from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
 import httpx2
@@ -16,7 +17,7 @@ from spotify_mcp_server.spotify.auth import (
     _pkce_pair,
     authorize,
 )
-from spotify_mcp_server.spotify.config import Settings
+from spotify_mcp_server.spotify.config import SCOPES, Settings
 
 pytestmark = pytest.mark.anyio
 
@@ -144,8 +145,11 @@ async def test_provider_normalizes_refresh_failure() -> None:
             await provider.access_token()
 
 
-async def test_authorize_persists_refresh_token_only(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_authorize_requests_all_scopes_and_persists_refresh_token_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     store = MemoryStore()
+    opened_urls: list[str] = []
 
     class FakeClient:
         async def __aenter__(self) -> FakeClient:
@@ -169,7 +173,9 @@ async def test_authorize_persists_refresh_token_only(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(auth_module, "_receive_callback", lambda *_: "callback-code")
     monkeypatch.setattr(auth_module.httpx2, "AsyncClient", lambda **_: FakeClient())
-    await authorize(settings(), open_browser=False, store=store)
+    monkeypatch.setattr(auth_module.webbrowser, "open", opened_urls.append)
+    await authorize(settings(), open_browser=True, store=store)
+    assert parse_qs(urlparse(opened_urls[0]).query)["scope"][0].split() == list(SCOPES)
     assert store.saved == ["persist-me"]
     assert "must-not-persist" not in store.saved
 

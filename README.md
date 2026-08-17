@@ -133,8 +133,6 @@ Hosted mode sets `MCP_DEPLOYMENT_MODE=hosted` in the Docker image and additional
 | --- | --- | --- |
 | `MCP_SERVER_URL` | Variable | Exact public endpoint ending in `/mcp`; also the validated token audience |
 | `SCALEKIT_ENVIRONMENT_URL` | Secret or variable | Scalekit environment issuer URL |
-| `SCALEKIT_CLIENT_ID` | Secret or variable | Scalekit environment client ID |
-| `SCALEKIT_CLIENT_SECRET` | Secret | Scalekit environment client secret |
 | `SCALEKIT_RESOURCE_ID` | Variable | Scalekit MCP resource ID beginning with `res_` |
 | `DATABASE_URL` | Secret | Neon pooled PostgreSQL connection string |
 | `TOKEN_ENCRYPTION_KEY` | Secret | Stable base64 key used to derive separate refresh-token and OAuth-state keys |
@@ -145,6 +143,9 @@ Spotify OAuth credentials are never returned from MCP tools. Access tokens remai
 refresh tokens are stored either by the operating system credential backend or encrypted in Neon.
 If `MCP_ALLOWED_SUBJECTS` is unset, any user whom your Scalekit and Spotify configurations admit may
 connect; set it for a server-side allowlist.
+
+The server validates Scalekit access tokens locally against the public signing keys at
+`<SCALEKIT_ENVIRONMENT_URL>/keys`; Scalekit client credentials are not required by the runtime.
 
 ## Development
 

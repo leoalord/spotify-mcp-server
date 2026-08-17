@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
+import jwt
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
@@ -33,8 +34,6 @@ class HostedSettings:
     """Required environment for the authenticated public deployment."""
 
     scalekit_environment_url: str
-    scalekit_client_id: str
-    scalekit_client_secret: str
     scalekit_resource_id: str
     mcp_server_url: str
     database_url: str
@@ -65,8 +64,6 @@ class HostedSettings:
         )
         return cls(
             scalekit_environment_url=environment_url,
-            scalekit_client_id=_required("SCALEKIT_CLIENT_ID"),
-            scalekit_client_secret=_required("SCALEKIT_CLIENT_SECRET"),
             scalekit_resource_id=resource_id,
             mcp_server_url=server_url,
             database_url=_required("DATABASE_URL"),
@@ -113,15 +110,8 @@ class ScalekitTokenVerifier:
     ) -> None:
         self.settings = settings
         if client is None:
-            from scalekit import ScalekitClient
-            from scalekit.common.scalekit import TokenValidationOptions
-
-            self.client = ScalekitClient(
-                env_url=settings.scalekit_environment_url,
-                client_id=settings.scalekit_client_id,
-                client_secret=settings.scalekit_client_secret,
-            )
-            self.options = TokenValidationOptions(
+            self.client = _ScalekitJWTClaimsClient(settings.scalekit_environment_url)
+            self.options = _ValidationOptions(
                 issuer=settings.scalekit_environment_url,
                 audience=[settings.mcp_server_url],
             )
@@ -187,6 +177,33 @@ class _ValidationOptions:
     issuer: str
     audience: list[str]
     required_scopes: list[str] | None = None
+
+
+class _ScalekitJWTClaimsClient:
+    """Validate ScaleKit access tokens against its public signing keys."""
+
+    def __init__(self, environment_url: str, *, jwks_client: Any | None = None) -> None:
+        self.jwks_client = jwks_client or jwt.PyJWKClient(f"{environment_url}/keys")
+
+    def validate_access_token_and_get_claims(
+        self,
+        token: str,
+        options: _ValidationOptions,
+    ) -> dict[str, Any]:
+        signing_key = self.jwks_client.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            key=signing_key.key,
+            algorithms=["RS256"],
+            issuer=options.issuer,
+            audience=options.audience,
+            options={"require": ["exp", "iss", "sub", "aud"]},
+        )
+        if options.required_scopes:
+            missing = set(options.required_scopes) - set(_scopes(claims))
+            if missing:
+                raise jwt.InvalidTokenError("required scope is missing")
+        return claims
 
 
 def _required(name: str) -> str:

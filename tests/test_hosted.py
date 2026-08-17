@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import httpx2
+import jwt
 import pytest
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.asymmetric import rsa
 from mcp.server.auth.provider import AccessToken
 
 from spotify_mcp_server.server import create_server
-from spotify_mcp_server.server_auth import HostedSettings, ScalekitTokenVerifier
+from spotify_mcp_server.server_auth import (
+    HostedSettings,
+    ScalekitTokenVerifier,
+    _ScalekitJWTClaimsClient,
+    _ValidationOptions,
+)
 from spotify_mcp_server.spotify.auth import AuthenticationError
 from spotify_mcp_server.spotify.config import SCOPES, Settings
 from spotify_mcp_server.spotify.hosted import (
@@ -47,8 +55,6 @@ class MemoryRepository:
 def hosted_settings(*, allowed_subjects: frozenset[str] = frozenset()) -> HostedSettings:
     return HostedSettings(
         scalekit_environment_url="https://tenant.scalekit.dev",
-        scalekit_client_id="skc_test",
-        scalekit_client_secret="secret",
         scalekit_resource_id="res_123",
         mcp_server_url="https://spotify.example/mcp",
         database_url="postgresql://user:pass@db.example/spotify?sslmode=require",
@@ -67,8 +73,6 @@ def test_hosted_settings_require_complete_https_configuration(
 ) -> None:
     values = {
         "SCALEKIT_ENVIRONMENT_URL": "https://tenant.scalekit.dev",
-        "SCALEKIT_CLIENT_ID": "skc_test",
-        "SCALEKIT_CLIENT_SECRET": "secret",
         "SCALEKIT_RESOURCE_ID": "res_123",
         "MCP_SERVER_URL": "https://spotify.example/mcp",
         "DATABASE_URL": "postgresql://database",
@@ -85,6 +89,48 @@ def test_hosted_settings_require_complete_https_configuration(
     monkeypatch.setenv("MCP_SERVER_URL", "http://spotify.example/mcp")
     with pytest.raises(ValueError, match="HTTPS"):
         HostedSettings.from_env()
+
+
+def test_scalekit_jwt_client_validates_signature_issuer_and_audience() -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    token = jwt.encode(
+        {
+            "sub": "usr_123",
+            "iss": "https://tenant.scalekit.dev",
+            "aud": "https://spotify.example/mcp",
+            "exp": 2_000_000_000,
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "key-1"},
+    )
+
+    class SigningKeyClient:
+        def get_signing_key_from_jwt(self, encoded: str) -> SimpleNamespace:
+            assert encoded == token
+            return SimpleNamespace(key=private_key.public_key())
+
+    client = _ScalekitJWTClaimsClient(
+        "https://tenant.scalekit.dev",
+        jwks_client=SigningKeyClient(),
+    )
+    claims = client.validate_access_token_and_get_claims(
+        token,
+        _ValidationOptions(
+            issuer="https://tenant.scalekit.dev",
+            audience=["https://spotify.example/mcp"],
+        ),
+    )
+
+    assert claims["sub"] == "usr_123"
+    with pytest.raises(jwt.InvalidAudienceError):
+        client.validate_access_token_and_get_claims(
+            token,
+            _ValidationOptions(
+                issuer="https://tenant.scalekit.dev",
+                audience=["https://other.example/mcp"],
+            ),
+        )
 
 
 async def test_scalekit_verifier_validates_audience_and_exposes_subject() -> None:

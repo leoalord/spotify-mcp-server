@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -27,7 +28,10 @@ async def current_user_profile(client: SpotifyClient) -> dict[str, Any]:
     }
 
 
-def register_resources(server: MCPServer, client: SpotifyClient) -> None:
+ClientResolver = Callable[[], Awaitable[SpotifyClient]]
+
+
+def register_resources(server: MCPServer, resolve_client: ClientResolver) -> None:
     """Register the intentionally small Spotify resource catalog."""
 
     @server.resource(
@@ -38,4 +42,4 @@ def register_resources(server: MCPServer, client: SpotifyClient) -> None:
         mime_type="application/json",
     )
     async def spotify_me() -> dict[str, Any]:
-        return await current_user_profile(client)
+        return await current_user_profile(await resolve_client())

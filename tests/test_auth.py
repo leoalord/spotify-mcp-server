@@ -34,15 +34,11 @@ class MemoryStore:
     def __init__(self, refresh_token: str | None = None) -> None:
         self.refresh_token = refresh_token
         self.saved: list[str] = []
-        self.load_thread: int | None = None
-        self.save_threads: list[int] = []
 
-    def load(self) -> str | None:
-        self.load_thread = threading.get_ident()
+    async def load(self) -> str | None:
         return self.refresh_token
 
-    def save(self, refresh_token: str) -> None:
-        self.save_threads.append(threading.get_ident())
+    async def save(self, refresh_token: str) -> None:
         self.refresh_token = refresh_token
         self.saved.append(refresh_token)
 
@@ -58,16 +54,16 @@ class FakeKeyring:
         self.values[(service_name, username)] = password
 
 
-def test_keyring_store_round_trip_contains_only_refresh_token() -> None:
+async def test_keyring_store_round_trip_contains_only_refresh_token() -> None:
     backend = FakeKeyring()
     store = KeyringRefreshTokenStore("spotify-mcp", "client", backend=backend)
-    assert store.load() is None
-    store.save("refresh")
-    assert store.load() == "refresh"
+    assert await store.load() is None
+    await store.save("refresh")
+    assert await store.load() == "refresh"
     assert backend.values == {("spotify-mcp", "spotify-client:client"): "refresh"}
 
 
-def test_keyring_store_normalizes_backend_failures() -> None:
+async def test_keyring_store_normalizes_backend_failures() -> None:
     class BrokenKeyring(FakeKeyring):
         def get_password(self, service_name: str, username: str) -> str | None:
             raise RuntimeError("backend details")
@@ -77,9 +73,9 @@ def test_keyring_store_normalizes_backend_failures() -> None:
 
     store = KeyringRefreshTokenStore("spotify-mcp", "client", backend=BrokenKeyring())
     with pytest.raises(AuthenticationError, match="read"):
-        store.load()
+        await store.load()
     with pytest.raises(AuthenticationError, match="save"):
-        store.save("secret")
+        await store.save("secret")
 
 
 async def test_provider_loads_refresh_token_but_keeps_access_token_in_memory() -> None:
@@ -103,7 +99,6 @@ async def test_provider_loads_refresh_token_but_keeps_access_token_in_memory() -
     assert calls == 1
     assert store.saved == []
     assert store.refresh_token == "keep"
-    assert store.load_thread != threading.get_ident()
 
 
 async def test_provider_persists_only_rotated_refresh_token() -> None:
@@ -125,7 +120,6 @@ async def test_provider_persists_only_rotated_refresh_token() -> None:
 
     assert store.saved == ["rotated"]
     assert "new-access" not in store.saved
-    assert store.save_threads[0] != threading.get_ident()
 
 
 async def test_provider_requires_prior_authorization() -> None:

@@ -145,3 +145,42 @@ def test_main_runs_stateless_streamable_http(monkeypatch: pytest.MonkeyPatch) ->
         "stateless_http": True,
         "json_response": True,
     }
+
+
+def test_main_runs_authenticated_hosted_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    transport_security = object()
+
+    class HostedRuntimeSettings:
+        host = "0.0.0.0"
+        port = 7860
+
+        @classmethod
+        def from_env(cls) -> HostedRuntimeSettings:
+            return cls()
+
+        def transport_security(self) -> object:
+            return transport_security
+
+    class RuntimeServer:
+        def run(self, *, transport: str, **kwargs: object) -> None:
+            captured.update(transport=transport, **kwargs)
+
+    def create_hosted_server(settings: object) -> RuntimeServer:
+        assert isinstance(settings, HostedRuntimeSettings)
+        return RuntimeServer()
+
+    monkeypatch.setenv("MCP_DEPLOYMENT_MODE", "hosted")
+    monkeypatch.setattr(server_module, "HostedSettings", HostedRuntimeSettings)
+    monkeypatch.setattr(server_module, "create_hosted_server", create_hosted_server)
+
+    main()
+
+    assert captured == {
+        "transport": "streamable-http",
+        "host": "0.0.0.0",
+        "port": 7860,
+        "stateless_http": True,
+        "json_response": True,
+        "transport_security": transport_security,
+    }

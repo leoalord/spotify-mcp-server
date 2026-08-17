@@ -30,9 +30,9 @@ class AuthenticationError(RuntimeError):
 class RefreshTokenStore(Protocol):
     """Minimal secret-store boundary; access tokens must never cross it."""
 
-    def load(self) -> str | None: ...
+    async def load(self) -> str | None: ...
 
-    def save(self, refresh_token: str) -> None: ...
+    async def save(self, refresh_token: str) -> None: ...
 
 
 class KeyringBackend(Protocol):
@@ -64,17 +64,24 @@ class KeyringRefreshTokenStore:
             raise AuthenticationError("The keyring package is required for Spotify OAuth") from exc
         return backend  # type: ignore[no-any-return]
 
-    def load(self) -> str | None:
+    async def load(self) -> str | None:
         try:
-            return self._keyring().get_password(self.service_name, self.username)
+            return await asyncio.to_thread(
+                self._keyring().get_password, self.service_name, self.username
+            )
         except Exception as exc:
             raise AuthenticationError(
                 "Could not read the Spotify refresh token from keyring"
             ) from exc
 
-    def save(self, refresh_token: str) -> None:
+    async def save(self, refresh_token: str) -> None:
         try:
-            self._keyring().set_password(self.service_name, self.username, refresh_token)
+            await asyncio.to_thread(
+                self._keyring().set_password,
+                self.service_name,
+                self.username,
+                refresh_token,
+            )
         except Exception as exc:
             raise AuthenticationError(
                 "Could not save the Spotify refresh token to keyring"
@@ -127,11 +134,7 @@ class SpotifyTokenProvider:
             ):
                 return self._token.access_token
 
-            refresh_token = (
-                self._token.refresh_token
-                if self._token
-                else await asyncio.to_thread(self.store.load)
-            )
+            refresh_token = self._token.refresh_token if self._token else await self.store.load()
             if not refresh_token:
                 raise AuthenticationError("Run `spotify-mcp-auth` before using Spotify tools")
             previous = self._token or TokenSet("", refresh_token, 0, "")
@@ -155,7 +158,7 @@ class SpotifyTokenProvider:
             )
         refreshed = TokenSet.from_payload(response.json(), previous=token)
         if refreshed.refresh_token and refreshed.refresh_token != token.refresh_token:
-            await asyncio.to_thread(self.store.save, refreshed.refresh_token)
+            await self.store.save(refreshed.refresh_token)
         return refreshed
 
     async def aclose(self) -> None:
@@ -266,7 +269,7 @@ async def authorize(
     if not token.refresh_token:
         raise AuthenticationError("Spotify did not return a refresh token")
     resolved_store = store or KeyringRefreshTokenStore(settings.keyring_service, settings.client_id)
-    resolved_store.save(token.refresh_token)
+    await resolved_store.save(token.refresh_token)
     logger.info("Authorization complete. Refresh token saved to the operating system keyring.")
 
 

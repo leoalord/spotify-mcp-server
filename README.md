@@ -1,12 +1,22 @@
+---
+title: Spotify MCP Server
+emoji: 🎧
+colorFrom: green
+colorTo: gray
+sdk: docker
+app_port: 7860
+license: mit
+---
+
 # Spotify MCP Server
 
-A personal, Pydantic-first MCP v2 server that bundles Spotify Web API operations into nine
-agent-friendly tools. It preserves Spotify object shapes, filters formally deprecated fields,
-returns usable partial results with structured warnings, and keeps reads frictionless while making
-writes explicit and bounded.
+A self-hostable, Pydantic-first MCP v2 server that bundles Spotify Web API operations into nine
+agent-friendly tools. It can run locally with operating-system keyring storage or remotely with
+Scalekit OAuth 2.1, CIMD client discovery, and encrypted per-user credentials in Neon Postgres.
 
 The server targets MCP `2026-07-28`, uses the official Python `mcp` v2 SDK, and serves stateless
-Streamable HTTP on loopback only.
+Streamable HTTP. Local mode is loopback-only. Hosted mode refuses to start without OAuth, database,
+and encryption configuration.
 
 ## Tools
 
@@ -42,7 +52,7 @@ Podcast transcripts and inferred podcast listening history are intentionally out
 Spotify does not expose them through the supported Web API. The server does not embed, train on,
 download, or persist Spotify content.
 
-## Setup
+## Local setup
 
 Prerequisites:
 
@@ -75,6 +85,37 @@ Prerequisites:
 The MCP endpoint is `http://127.0.0.1:8000/mcp` by default. Configure an MCP v2 client to use that
 Streamable HTTP URL. The server rejects non-loopback `MCP_HOST` values.
 
+## Hosted deployment
+
+The included Dockerfile is configured for a Hugging Face Docker Space on port `7860`. Hosted mode
+uses Scalekit as the MCP authorization server and creates a single `spotify_credentials` table in
+Neon. The table contains a Scalekit subject, an encrypted Spotify refresh token, and an update
+timestamp. Spotify access tokens and Spotify content are not persisted.
+
+1. Create a Spotify developer application, add each permitted Spotify account to its development
+   allowlist, and register this redirect URI:
+
+   ```text
+   https://<space-owner>-<space-name>.hf.space/spotify/callback
+   ```
+
+2. In Scalekit, register `https://<space-owner>-<space-name>.hf.space/mcp` as the MCP Server URL and
+   enable CIMD. Configure DCR separately only if compatibility with a non-CIMD client is required.
+3. Create a Neon database and use its pooled connection string for `DATABASE_URL`.
+4. Generate a stable encryption key once:
+
+   ```bash
+   uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+
+5. Configure the Space variables and secrets listed below, then deploy this repository to the
+   Docker Space. The remote MCP endpoint is the same URL registered in Scalekit.
+
+After a user authorizes the MCP client through Scalekit, their first Spotify tool request returns a
+short-lived `/spotify/connect` link. They authorize the shared Spotify developer application with
+PKCE, return to the MCP client, and retry the request. Spotify's development-account limits still
+apply; this server does not bypass them.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -86,8 +127,24 @@ Streamable HTTP URL. The server rejects non-loopback `MCP_HOST` values.
 | `MCP_HOST` | `127.0.0.1` | Loopback bind address only |
 | `MCP_PORT` | `8000` | Local Streamable HTTP port |
 
+Hosted mode sets `MCP_DEPLOYMENT_MODE=hosted` in the Docker image and additionally requires:
+
+| Variable | Storage | Purpose |
+| --- | --- | --- |
+| `MCP_SERVER_URL` | Variable | Exact public endpoint ending in `/mcp`; also the validated token audience |
+| `SCALEKIT_ENVIRONMENT_URL` | Secret or variable | Scalekit environment issuer URL |
+| `SCALEKIT_CLIENT_ID` | Secret or variable | Scalekit environment client ID |
+| `SCALEKIT_CLIENT_SECRET` | Secret | Scalekit environment client secret |
+| `SCALEKIT_RESOURCE_ID` | Variable | Scalekit MCP resource ID beginning with `res_` |
+| `DATABASE_URL` | Secret | Neon pooled PostgreSQL connection string |
+| `TOKEN_ENCRYPTION_KEY` | Secret | Stable base64 key used to derive separate refresh-token and OAuth-state keys |
+| `SPOTIFY_CLIENT_ID` | Secret or variable | Public client ID of the hosted Spotify developer application |
+| `MCP_ALLOWED_SUBJECTS` | Variable, optional | Comma-separated Scalekit user IDs allowed to connect Spotify |
+
 Spotify OAuth credentials are never returned from MCP tools. Access tokens remain memory-only, and
-refresh tokens are stored by the operating system credential backend.
+refresh tokens are stored either by the operating system credential backend or encrypted in Neon.
+If `MCP_ALLOWED_SUBJECTS` is unset, any user whom your Scalekit and Spotify configurations admit may
+connect; set it for a server-side allowlist.
 
 ## Development
 
@@ -112,3 +169,7 @@ successful partial results.
 Before distribution, recheck Spotify's current Developer Terms for the intended MCP host and LLM
 runtime. Spotify content must not be used to train or fine-tune a model, and this server provides no
 long-lived content cache or embeddings.
+
+## License
+
+MIT

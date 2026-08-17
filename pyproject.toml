@@ -9,10 +9,13 @@ description = "A Pydantic-first MCP v2 server for Spotify catalog, library, play
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "asyncpg>=0.31.0,<1.0",
+  "cryptography>=48.0.1,<49.0",
   "httpx2>=2.10,<3.0",
   "keyring>=25.6,<27.0",
   "mcp>=2.0.0,<3.0.0",
   "pydantic>=2.13,<3.0",
+  "scalekit-sdk-python>=2.16.0,<3.0",
 ]
 
 [project.optional-dependencies]

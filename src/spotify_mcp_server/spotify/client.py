@@ -156,7 +156,14 @@ class SpotifyClient:
                 raise _api_error(response, retry_after)
             if response.status_code == 204 or not response.content:
                 return None
-            return sanitize_spotify_payload(response.json())
+            try:
+                payload = response.json()
+            except ValueError:
+                # Spotify documents the player write endpoints as 204 No Content, but
+                # /me/player/shuffle and /me/player/repeat answer 200 with a short
+                # non-JSON body. A successful write carries no payload either way.
+                return None
+            return sanitize_spotify_payload(payload)
 
     async def paged(
         self,

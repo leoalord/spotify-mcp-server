@@ -82,6 +82,18 @@ async def test_request_refresh_retry_and_no_content() -> None:
     assert tokens.calls == [False, True]
 
 
+async def test_request_treats_non_json_success_body_as_no_content() -> None:
+    """Shuffle and repeat answer 200 with a short non-JSON body instead of 204."""
+
+    async def handler(_: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, content=b"OK")
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+        client = SpotifyClient(Tokens(), client=http, max_retries=0)
+        assert await client.request("PUT", "/me/player/shuffle", params={"state": True}) is None
+        assert await client.request("PUT", "/me/player/repeat", params={"state": "off"}) is None
+
+
 async def test_request_retries_rate_limit_then_returns_payload() -> None:
     sleeps: list[float] = []
     seen = 0

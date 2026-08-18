@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Build the product described in the [Spotify MCP Server PRD](https://app.notion.com/p/Spotify-MCP-Server-PRD-3b72bade7f3181d38201dc480d7c5d3c) with the smallest maintainable implementation that satisfies the current task.
+Build the Spotify MCP Server product with the smallest maintainable implementation that satisfies the current task.
 
 Optimize for clarity, correctness, and a small dependency surface. Do not optimize for hypothetical future requirements.
 

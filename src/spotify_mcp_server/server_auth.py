@@ -7,6 +7,9 @@ import contextvars
 import logging
 import os
 import re
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
 from urllib.parse import urlparse
@@ -23,6 +26,15 @@ logger = logging.getLogger(__name__)
 _subject_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "scalekit_subject", default=None
 )
+
+# Scalekit signs with RS256. Pinning the list here keeps an attacker from selecting the
+# algorithm, and lets the JWKS client reject a token before it can influence a key fetch.
+_ALLOWED_ALGORITHMS: tuple[str, ...] = ("RS256",)
+
+# Shortest gap between two cache-bypassing JWKS refreshes. Long enough that forged key ids
+# cannot amplify traffic to Scalekit, short enough that a genuine key rotation is picked up
+# on the next request rather than waiting out the JWK set cache.
+_JWKS_MIN_REFRESH_INTERVAL = 30.0
 
 
 class ScalekitClaimsClient(Protocol):
@@ -179,11 +191,70 @@ class _ValidationOptions:
     required_scopes: list[str] | None = None
 
 
+class _ThrottledJWKSClient:
+    """Resolve Scalekit signing keys while rate-limiting cache-bypassing JWKS refreshes.
+
+    `PyJWKClient.get_signing_key_from_jwt` refetches the whole JWK set whenever a token's
+    `kid` misses the cache, and that happens before any signature is checked. Left alone it
+    turns one unauthenticated request into one outbound request to Scalekit, each holding a
+    worker thread for the duration of a blocking fetch. Refreshes are throttled instead, so a
+    stream of forged `kid`s cannot amplify traffic to the issuer or starve the thread pool.
+    """
+
+    def __init__(
+        self,
+        uri: str,
+        *,
+        client: Any | None = None,
+        min_refresh_interval: float = _JWKS_MIN_REFRESH_INTERVAL,
+        now: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._client = client or jwt.PyJWKClient(uri)
+        self._min_refresh_interval = min_refresh_interval
+        self._now = now
+        # verify_token runs under asyncio.to_thread, so refreshes race across worker threads.
+        self._lock = threading.Lock()
+        self._last_refresh: float | None = None
+
+    def get_signing_key_from_jwt(self, token: str) -> Any:
+        header = jwt.get_unverified_header(token)
+        algorithm = header.get("alg")
+        if algorithm not in _ALLOWED_ALGORITHMS:
+            raise jwt.InvalidAlgorithmError(f"unsupported token algorithm: {algorithm!r}")
+        kid = header.get("kid")
+        if not isinstance(kid, str) or not kid:
+            # Scalekit always publishes a key id; without one there is nothing to match, and
+            # falling through would spend a refresh on a token that can never resolve.
+            raise jwt.PyJWKClientError("token header is missing a key id")
+
+        key = self._client.match_kid(self._client.get_signing_keys(), kid)
+        if key is not None:
+            return key
+        if not self._claim_refresh():
+            raise jwt.PyJWKClientError(f'Unable to find a signing key that matches: "{kid}"')
+
+        key = self._client.match_kid(self._client.get_signing_keys(refresh=True), kid)
+        if key is None:
+            raise jwt.PyJWKClientError(f'Unable to find a signing key that matches: "{kid}"')
+        return key
+
+    def _claim_refresh(self) -> bool:
+        """Take the right to refresh, or report that another refresh happened too recently."""
+
+        with self._lock:
+            now = self._now()
+            last = self._last_refresh
+            if last is not None and now - last < self._min_refresh_interval:
+                return False
+            self._last_refresh = now
+            return True
+
+
 class _ScalekitJWTClaimsClient:
     """Validate ScaleKit access tokens against its public signing keys."""
 
     def __init__(self, environment_url: str, *, jwks_client: Any | None = None) -> None:
-        self.jwks_client = jwks_client or jwt.PyJWKClient(f"{environment_url}/keys")
+        self.jwks_client = jwks_client or _ThrottledJWKSClient(f"{environment_url}/keys")
 
     def validate_access_token_and_get_claims(
         self,
@@ -194,7 +265,7 @@ class _ScalekitJWTClaimsClient:
         claims = jwt.decode(
             token,
             key=signing_key.key,
-            algorithms=["RS256"],
+            algorithms=list(_ALLOWED_ALGORITHMS),
             issuer=options.issuer,
             audience=options.audience,
             options={"require": ["exp", "iss", "sub", "aud"]},

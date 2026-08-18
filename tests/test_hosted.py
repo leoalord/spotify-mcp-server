@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -18,6 +20,7 @@ from spotify_mcp_server.server_auth import (
     HostedSettings,
     ScalekitTokenVerifier,
     _ScalekitJWTClaimsClient,
+    _ThrottledJWKSClient,
     _ValidationOptions,
 )
 from spotify_mcp_server.spotify.auth import AuthenticationError
@@ -131,6 +134,83 @@ def test_scalekit_jwt_client_validates_signature_issuer_and_audience() -> None:
                 audience=["https://other.example/mcp"],
             ),
         )
+
+
+class RecordingJWKSClient:
+    """Stands in for PyJWKClient, counting the fetches a caller actually provokes."""
+
+    def __init__(self, kid: str = "key-1") -> None:
+        self.key = SimpleNamespace(key_id=kid)
+        self.fetches = 0
+        self.refreshes = 0
+
+    def get_signing_keys(self, refresh: bool = False) -> list[Any]:
+        self.fetches += 1
+        if refresh:
+            self.refreshes += 1
+        return [self.key]
+
+    @staticmethod
+    def match_kid(signing_keys: list[Any], kid: str) -> Any | None:
+        return next((key for key in signing_keys if key.key_id == kid), None)
+
+
+def _unsigned_token(headers: dict[str, Any]) -> str:
+    """Build a token for its header alone; key resolution never inspects the signature."""
+
+    def segment(payload: dict[str, Any]) -> str:
+        raw = json.dumps(payload, separators=(",", ":")).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    return f"{segment(headers)}.{segment({'sub': 'usr_123'})}.not-a-signature"
+
+
+def test_forged_key_ids_cannot_drive_repeated_jwks_refreshes() -> None:
+    inner = RecordingJWKSClient()
+    clock = SimpleNamespace(value=1_000.0)
+    client = _ThrottledJWKSClient(
+        "https://tenant.scalekit.dev/keys",
+        client=inner,
+        min_refresh_interval=30.0,
+        now=lambda: clock.value,
+    )
+
+    for index in range(5):
+        with pytest.raises(jwt.PyJWKClientError):
+            client.get_signing_key_from_jwt(
+                _unsigned_token({"alg": "RS256", "kid": f"forged-{index}"})
+            )
+
+    # Five unauthenticated requests, one refresh: the rest are refused by the throttle.
+    assert inner.refreshes == 1
+
+    # Once the interval elapses a genuine rotation is still picked up.
+    clock.value += 31.0
+    with pytest.raises(jwt.PyJWKClientError):
+        client.get_signing_key_from_jwt(_unsigned_token({"alg": "RS256", "kid": "forged-late"}))
+    assert inner.refreshes == 2
+
+
+def test_known_key_id_resolves_without_refreshing() -> None:
+    inner = RecordingJWKSClient()
+    client = _ThrottledJWKSClient("https://tenant.scalekit.dev/keys", client=inner)
+
+    key = client.get_signing_key_from_jwt(_unsigned_token({"alg": "RS256", "kid": "key-1"}))
+
+    assert key is inner.key
+    assert inner.refreshes == 0
+
+
+def test_disallowed_algorithm_is_rejected_before_any_key_fetch() -> None:
+    inner = RecordingJWKSClient()
+    client = _ThrottledJWKSClient("https://tenant.scalekit.dev/keys", client=inner)
+
+    with pytest.raises(jwt.InvalidAlgorithmError):
+        client.get_signing_key_from_jwt(_unsigned_token({"alg": "HS256", "kid": "key-1"}))
+    with pytest.raises(jwt.PyJWKClientError):
+        client.get_signing_key_from_jwt(_unsigned_token({"alg": "RS256"}))
+
+    assert inner.fetches == 0
 
 
 async def test_scalekit_verifier_validates_audience_and_exposes_subject() -> None:

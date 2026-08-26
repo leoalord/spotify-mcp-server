@@ -52,13 +52,35 @@ Podcast transcripts and inferred podcast listening history are intentionally out
 Spotify does not expose them through the supported Web API. The server does not embed, train on,
 download, or persist Spotify content.
 
+## Spotify access limits
+
+Read this before deploying. These are Spotify platform rules, not limits of this server, and nothing
+here works around them.
+
+- A Spotify application in **development mode** may authorize **at most 5 Spotify accounts**. You
+  add each one by hand in the developer dashboard under Settings -> User Management, using the
+  person's name and the email on their Spotify account. Accounts missing from that list fail
+  authorization.
+- **Extended quota mode**, which lifts the limit, has been restricted to organizations since
+  15 May 2025 and requires a registered business with at least 250,000 monthly active users.
+  Individual developers cannot qualify, and there is no intermediate tier.
+- **Playback control requires Spotify Premium** on each user's own account. Free accounts can still
+  search, read their library, and read listening history, but `player_control` requests fail.
+
+One deployment therefore serves you plus at most four people you invite by hand. Scaling past that
+requires each user to supply their own Spotify application and client ID, which this server does not
+implement today; it sends every user through one shared `SPOTIFY_CLIENT_ID`.
+
+Spotify's [quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes)
+documentation has the current rules.
+
 ## Local setup
 
 Prerequisites:
 
 - Python 3.11+
 - [`uv`](https://docs.astral.sh/uv/)
-- A Spotify developer application
+- A Spotify developer application (see [Spotify access limits](#spotify-access-limits))
 
 1. In the Spotify developer dashboard, register `http://127.0.0.1:8765/callback` as a redirect URI.
 2. Install the locked project environment and create local configuration:
@@ -92,8 +114,9 @@ uses Scalekit as the MCP authorization server and creates a single `spotify_cred
 Neon. The table contains a Scalekit subject, an encrypted Spotify refresh token, and an update
 timestamp. Spotify access tokens and Spotify content are not persisted.
 
-1. Create a Spotify developer application, add each permitted Spotify account to its development
-   allowlist, and register this redirect URI:
+1. Create a Spotify developer application and register this redirect URI. Add every permitted
+   Spotify account under Settings -> User Management; development mode allows at most 5, including
+   your own, and unlisted accounts cannot authorize:
 
    ```text
    https://<space-owner>-<space-name>.hf.space/spotify/callback
@@ -113,8 +136,8 @@ timestamp. Spotify access tokens and Spotify content are not persisted.
 
 After a user authorizes the MCP client through Scalekit, their first Spotify tool request returns a
 short-lived `/spotify/connect` link. They authorize the shared Spotify developer application with
-PKCE, return to the MCP client, and retry the request. Spotify's development-account limits still
-apply; this server does not bypass them.
+PKCE, return to the MCP client, and retry the request. Every user authorizes the same shared
+application, so the 5-account development-mode limit above applies to the deployment as a whole.
 
 ## Configuration
 

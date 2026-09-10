@@ -5,9 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "spotify-mcp-server"
 version = "0.1.0"
-description = "A Pydantic-first MCP v2 server for Spotify catalog, library, playlists, playback, and listening activity."
+description = "Self-hostable MCP v2 server for Spotify catalog, library, playlists, playback, and listening activity."
 readme = "README.md"
+license = "MIT"
+authors = [{ name = "Leo Walker" }]
 requires-python = ">=3.11"
+keywords = ["mcp", "spotify"]
 dependencies = [
   "asyncpg>=0.31.0,<1.0",
   "cryptography>=50.0.0,<51.0",
@@ -28,6 +31,11 @@ dev = [
 spotify-mcp-server = "spotify_mcp_server.server:main"
 spotify-mcp-auth = "spotify_mcp_server.spotify.auth:main"
 spotify-mcp-schema = "spotify_mcp_server.schema:main"
+
+[project.urls]
+Homepage = "https://github.com/leoalord/spotify-mcp-server"
+Repository = "https://github.com/leoalord/spotify-mcp-server"
+Issues = "https://github.com/leoalord/spotify-mcp-server/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/spotify_mcp_server"]

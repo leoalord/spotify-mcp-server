@@ -6,9 +6,18 @@ colorTo: gray
 sdk: docker
 app_port: 7860
 license: mit
+short_description: Self-hostable Spotify MCP. Bring your own Spotify app; this Space is a reference deploy.
 ---
 
 # Spotify MCP Server
+
+This is software you host yourself. Create your own Spotify developer application, then run
+the server locally or deploy a copy. It is **not** a public Spotify MCP that other people can
+connect to, and it is not affiliated with Spotify.
+
+A Hugging Face Docker Space is included as a **reference** for authenticated remote hosting. That
+example uses the maintainer's development-mode Spotify app, which Spotify caps at five accounts.
+Do not add the Space URL as a connector in ChatGPT, Cursor, Claude, or any other client.
 
 A self-hostable, Pydantic-first MCP v2 server that bundles Spotify Web API operations into nine
 agent-friendly tools. It can run locally with operating-system keyring storage or remotely with
@@ -17,6 +26,16 @@ Scalekit OAuth 2.1, CIMD client discovery, and encrypted per-user credentials in
 The server targets MCP `2026-07-28`, uses the official Python `mcp` v2 SDK, and serves stateless
 Streamable HTTP. Local mode is loopback-only. Hosted mode refuses to start without OAuth, database,
 and encryption configuration.
+
+## Compared with Spotify's Claude connector
+
+Spotify's [official Claude connector](https://claude.com/connectors/spotify) is a Claude product
+integration operated by Spotify. It works in Claude products. It is not a general MCP server, so
+it cannot be pointed at ChatGPT, Cursor, or other MCP clients.
+
+This server speaks Streamable HTTP. After you run or host it with **your** Spotify client ID, any
+MCP v2 client that can reach the endpoint can use it, including ChatGPT custom connectors, Cursor, and
+Claude Desktop.
 
 ## Tools
 
@@ -104,15 +123,68 @@ Prerequisites:
    uv run spotify-mcp-server
    ```
 
-The MCP endpoint is `http://127.0.0.1:8000/mcp` by default. Configure an MCP v2 client to use that
-Streamable HTTP URL. The server rejects non-loopback `MCP_HOST` values.
+The MCP endpoint is `http://127.0.0.1:8000/mcp` by default. The server rejects non-loopback
+`MCP_HOST` values.
 
-## Hosted deployment
+## Connect an MCP client
 
-The included Dockerfile is configured for a Hugging Face Docker Space on port `7860`. Hosted mode
-uses Scalekit as the MCP authorization server and creates a single `spotify_credentials` table in
-Neon. The table contains a Scalekit subject, an encrypted Spotify refresh token, and an update
-timestamp. Spotify access tokens and Spotify content are not persisted.
+Point clients at **your** loopback or hosted `/mcp` URL. Do not use the maintainer Hugging Face
+Space.
+
+### Cursor
+
+Add to `~/.cursor/mcp.json` or the project `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "spotify": {
+      "url": "http://127.0.0.1:8000/mcp"
+    }
+  }
+}
+```
+
+### Claude Desktop and Claude Code
+
+Claude Desktop (`claude_desktop_config.json`) and Claude Code both need an explicit HTTP transport:
+
+```json
+{
+  "mcpServers": {
+    "spotify": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp"
+    }
+  }
+}
+```
+
+Claude Code equivalent: `claude mcp add --transport http spotify http://127.0.0.1:8000/mcp`.
+
+### ChatGPT
+
+ChatGPT custom connectors require a public HTTPS endpoint. After you deploy **your** hosted copy,
+add that `/mcp` URL in Settings -> Connectors (Developer Mode). ChatGPT cannot reach `127.0.0.1`.
+Do not enter the maintainer Space URL.
+
+Hosted clients complete Scalekit OAuth first, then connect Spotify when a tool returns the
+`/spotify/connect` link.
+
+## Hosted deployment (reference)
+
+The included Dockerfile is configured for a Hugging Face Docker Space on port `7860`. Use it to
+deploy **your own** Space, Scalekit environment, Neon database, and Spotify application. The public
+Space at [LeoWalker/spotify-mcp-server](https://huggingface.co/spaces/LeoWalker/spotify-mcp-server)
+shows that this pattern works; it is not an open MCP service.
+
+Hosted mode uses Scalekit as the MCP authorization server (not WorkOS AuthKit) and creates a
+single `spotify_credentials` table in Neon. The table contains a Scalekit subject, an encrypted
+Spotify refresh token, and an update timestamp. Spotify access tokens and Spotify content are not
+persisted.
+
+Set `MCP_ALLOWED_SUBJECTS` on every hosted instance so only your Scalekit user IDs can start Spotify
+OAuth against your shared client ID.
 
 1. Create a Spotify developer application and register this redirect URI. Add every permitted
    Spotify account under Settings -> User Management; development mode allows at most 5, including
@@ -160,12 +232,12 @@ Hosted mode sets `MCP_DEPLOYMENT_MODE=hosted` in the Docker image and additional
 | `DATABASE_URL` | Secret | Neon pooled PostgreSQL connection string |
 | `TOKEN_ENCRYPTION_KEY` | Secret | Stable base64 key used to derive separate refresh-token and OAuth-state keys |
 | `SPOTIFY_CLIENT_ID` | Secret or variable | Public client ID of the hosted Spotify developer application |
-| `MCP_ALLOWED_SUBJECTS` | Variable, optional | Comma-separated Scalekit user IDs allowed to connect Spotify |
+| `MCP_ALLOWED_SUBJECTS` | Variable | Comma-separated Scalekit user IDs allowed to connect Spotify; set this on every hosted instance |
 
 Spotify OAuth credentials are never returned from MCP tools. Access tokens remain memory-only, and
 refresh tokens are stored either by the operating system credential backend or encrypted in Neon.
 If `MCP_ALLOWED_SUBJECTS` is unset, any user whom your Scalekit and Spotify configurations admit may
-connect; set it for a server-side allowlist.
+connect.
 
 The server validates Scalekit access tokens locally against the public signing keys at
 `<SCALEKIT_ENVIRONMENT_URL>/keys`; Scalekit client credentials are not required by the runtime.
@@ -196,4 +268,5 @@ long-lived content cache or embeddings.
 
 ## License
 
-MIT
+MIT. Spotify is a trademark of Spotify AB. This project is unofficial and is not endorsed by
+Spotify.
